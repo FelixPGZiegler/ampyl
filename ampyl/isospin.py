@@ -55,13 +55,15 @@ class IsospinComposite:
             print("\n")
     def get_cg_row_index(self,j,m):
         cb = self.get_coupled_basis()
-        idx, = np.where(cb[0] == j)
-        iy = int(idx[0])
+        #print(cb)
+        idx = cb[0].index(j)
+        #print(idx)
+        iy = idx
         sum = 0
         for k in range(0,iy):
             sum += cb[2][k]
-        midx, = np.where(cb[1][iy] == m)
-        iz = sum + int(midx[0])
+        midx = cb[1][iy].index(m)
+        iz = sum + midx
         return iz
         
 class TPIsospinComposite:
@@ -84,6 +86,7 @@ class TPIsospinComposite:
                 self.TPIzerochannelbasis.append(elem)
         sizeCC = len(self.TPIzerochannelbasis)
         self.CaligraphicC = np.zeros((sizeCC,sizeCC),dtype=np.complex128)
+        self.Iset = [get_jvalues(j,j3) for j in self.Dimer.jlist]
         self.Ilist = []
         self.Ishelllist = []
         for j in self.Dimer.jlist:
