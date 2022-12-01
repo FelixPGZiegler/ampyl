@@ -406,7 +406,7 @@ class TPIsospinComposite:
         self.mImin = 0.0
         if (int(2 * self.Imax) % 2 == 1):
             self.mImin = 0.5
-        self.Dimer=IsospinComposite(j1,j1)
+        self.Dimer=IsospinComposite(j1,j2)
         self.Spectator=SpinObj(j3)
         self.DimerSpectatorList = [IsospinComposite(j,j3) for j in self.Dimer.jlist]
         self.j1basis = get_mvalues(j1)
