@@ -43,6 +43,7 @@ from .group_theory import Groups
 from .group_theory import Irreps
 from .qc_functions import QCFunctions
 from .qc_functions import BKFunctions
+from .qc_functions import QC_IMPL_DEFAULTS
 warnings.simplefilter('always')
 
 PI = np.pi
@@ -110,8 +111,8 @@ class FlavorChannel:
     :type n_particles: int
     :param masses: mass of each particle in the channel
     :type masses: list of floats
-    :param spins: twice the spin of each particle in the channel
-    :type spins: list of ints
+    :param twospins: twice the spin of each particle in the channel
+    :type twospins: list of ints
     :param explicit_flavor_channel: specifies whether this is an
         explicit-flavor channel (as opposed to an isospin channel)
     :type explicit_flavor_channel: bool
@@ -130,11 +131,10 @@ class FlavorChannel:
     :type isospin_flavor: int
     """
 
-    def __init__(self, n_particles, masses=None, spins=None,
+    def __init__(self, n_particles, masses=None, twospins=None,
                  explicit_flavor_channel=True, explicit_flavors=None,
                  isospin_channel=False, isospin_value=None,
-                 isospin_flavor=None,
-                 individual_isospins=None):
+                 isospin_flavor=None, individual_isospins=None):
         if not isinstance(n_particles, int):
             raise ValueError('n_particles must be an int')
         if n_particles < 2:
@@ -143,8 +143,8 @@ class FlavorChannel:
 
         if masses is None:
             masses = n_particles*[1.0]
-        if spins is None:
-            spins = n_particles*[0]
+        if twospins is None:
+            twospins = n_particles*[0]
         if not isospin_channel and isospin_value is not None:
             isospin_channel = True
             explicit_flavor_channel = False
@@ -178,7 +178,7 @@ class FlavorChannel:
         self.individual_isospins = individual_isospins
 
         self.masses = masses
-        self.spins = spins
+        self.twospins = twospins
         self.n_particles = n_particles
 
     def _generic_setter(self, var, varstr, enttype, enttypestr):
@@ -377,23 +377,23 @@ class FlavorChannel:
                 self._masses = [self._masses[0]]*self._n_particles
 
     @property
-    def spins(self):
+    def twospins(self):
         """Get 2xspins (list of ints)."""
-        return self._spins
+        return self._twospins
 
-    @spins.setter
-    def spins(self, spins):
-        self._spins = self._generic_setter(spins, 'spins', int, 'int')
+    @twospins.setter
+    def twospins(self, twospins):
+        self._twospins = self._generic_setter(twospins, 'twospins', int, 'int')
         if self.isospin_channel:
-            if not (np.array(self._spins) ==
-                    np.array([self._spins[0]]*self._n_particles)).all()\
-               and len(self._spins) != 2:
+            if not (np.array(self._twospins) ==
+                    np.array([self._twospins[0]]*self._n_particles)).all()\
+               and len(self._twospins) != 2:
                 warnings.warn("\n"+bcolors.WARNING
-                              + "spins must be equal for isospin "
+                              + "twospins must be equal for isospin "
                               + "channel. "
                               + "Setting to first value."
                               + f"{bcolors.ENDC}", stacklevel=2)
-                self._spins = [self._spins[0]]*self._n_particles
+                self._twospins = [self._twospins[0]]*self._n_particles
 
     @property
     def individual_isospins(self):
@@ -420,7 +420,7 @@ class FlavorChannel:
         else:
             self._n_particles = n_particles
             self.masses = self._masses
-            self.spins = self._spins
+            self.twospins = self._twospins
             self.explicit_flavors = self._explicit_flavors
             if self._isospin_channel and self._isospin_value > n_particles:
                 warnings.warn("\n"+bcolors.WARNING
@@ -434,7 +434,7 @@ class FlavorChannel:
         strtmp = 'FlavorChannel with the following details:\n'
         strtmp = strtmp+f'    {self._n_particles} particles,\n'
         strtmp = strtmp+f'    masses: {self._masses},\n'
-        strtmp = strtmp+f'    spins: {self._spins},\n'
+        strtmp = strtmp+f'    twospins: {self._twospins},\n'
         strtmp = strtmp+(f'    explicit_flavor_channel: '
                          f'{self._explicit_flavor_channel},\n')
         strtmp = strtmp+(f'    explicit_flavors: '
@@ -464,8 +464,8 @@ class SpectatorChannel:
     :type sub_isospin: int
     :param ell_set: specifies the allowed values of orbital angular momentum
     :type ell_set: list of ints
-    :param p_cot_deltas: soecufues the two-particle scattering phase shifts
-        (same length as ell_set)
+    :param p_cot_deltas: specifies the two-particle scattering phase shifts
+        (same length as ell_set, default is scattering length only)
     :type p_cot_deltas: list of functions
     :param n_params_set: specifies the number of parameters for each
         p_cot_deltas entry (same length as ell_set and p_cot_deltas)
@@ -473,8 +473,7 @@ class SpectatorChannel:
     """
 
     def __init__(self, fc=FlavorChannel(3), indexing=[0, 1, 2],
-                 sub_isospin=None, ell_set=[0],
-                 p_cot_deltas=[QCFunctions.pcotdelta_scattering_length],
+                 sub_isospin=None, ell_set=[0], p_cot_deltas=None,
                  n_params_set=[1]):
         self._fc = fc
         self._indexing = indexing
@@ -487,7 +486,15 @@ class SpectatorChannel:
         self.indexing = indexing
         self.sub_isospin = sub_isospin
         self.ell_set = ell_set
-        self.p_cot_deltas = p_cot_deltas
+        if p_cot_deltas is None:
+            tmp = []
+            for i in range(len(ell_set)):
+                tmp = tmp+[QCFunctions.pcotdelta_scattering_length]
+                self._p_cot_deltas = tmp
+                self.p_cot_deltas = tmp
+        else:
+            self._p_cot_deltas = p_cot_deltas
+            self.p_cot_deltas = p_cot_deltas
         self.n_params_set = n_params_set
 
     @property
@@ -569,7 +576,8 @@ class SpectatorChannel:
     @ell_set.setter
     def ell_set(self, ell_set):
         self._ell_set = ell_set
-        if len(self.p_cot_deltas) != len(ell_set):
+        if ((self.p_cot_deltas is not None)
+           and (len(self.p_cot_deltas) != len(ell_set))):
             self._p_cot_deltas = [self._p_cot_deltas[0]]*len(ell_set)
         if len(self.n_params_set) != len(ell_set):
             self._n_params_set = [self._n_params_set[0]]*len(ell_set)
@@ -582,7 +590,8 @@ class SpectatorChannel:
     @p_cot_deltas.setter
     def p_cot_deltas(self, p_cot_deltas):
         self._p_cot_deltas = p_cot_deltas
-        if len(self.ell_set) != len(p_cot_deltas):
+        if ((p_cot_deltas is not None)
+           and (len(self.ell_set) != len(p_cot_deltas))):
             raise ValueError('len(ell_set) != len(p_cot_deltas)')
 
     @property
@@ -611,51 +620,56 @@ class FlavorChannelSpace:
     r"""
     Class used to represent a space of multi-hadron channels.
 
-    :param fc_list: flavor channel list
+    :param fc_list: flavor-channel list
     :type fc_list: list of instances of FlavorChannel
-    :param ni_list: non-interacting flavor channel list
+    :param ni_list: non-interacting flavor-channel list
     :type ni_list: list of instances of FlavorChannel
-    :param sc_list: spectator channel list
-
-         SpectatorChannel is a class to be used predominantly within
+    :param sc_list: spectator-channel list
+         (SpectatorChannel is a class to be used predominantly within
          FlavorChannelSpace. It includes extra information relevative to
-         FlavorChannel as summarized below.
+         FlavorChannel as summarized in the SpectatorChannel documentation.)
     :type sc_list: list of instances of SpectatorChannel
     :param qcd_channel_space: defines whether the space is a qcd channel space
-
         (as opposed to an explicit flavor channel space)
     :type qcd_channel_space: bool
     :param explicit_flavor_channel_space: defines whether the space is an
-        explicit flavor channel space
-
-        (as opposed to a qcd channel space)
+        explicit flavor channel space (as opposed to a qcd channel space)
     :type explicit_flavor_channel_space: bool
-    :param sc_compact: a
-    :type sc_compact: compact summary of the relevant spectator-channel
-        properties
+    :param sc_compact: Compact summary of the relevant spectator-channel
+        properties:
+
 
         The exact data depends on whether the space is a qcd channel space or
         an explicit flavor channel space. In both cases sc_compact is a list of
         rank-two np.ndarrays, one for each value of n_particles included in
         the entries of fc_list. If only three-particle channels are included,
-        then len(sc_compact) is 1 and it contains a single rank-two np.ndarray.
-        Focus on this case. Then len(sc_compact[0]) is the total number of
-        three-particle spectator channels.
+        then ``len(sc_compact)`` is 1 and it contains a single rank-two
+        np.ndarray. Focus on this case. Then ``len(sc_compact[0])`` is the
+        total number of three-particle spectator channels.
 
-        In the case of a qcd channel space len(sc_compact[0].T) is 10. Each
-        row is populated as follows:
-            [3.0, mass1, mass2, mass3, spin1, spin2, spin3, isospin_flavor,
-              isospin_value, sub_isospin],
+
+        In the case of a qcd channel space ``len(sc_compact[0].T)`` is 10. Each
+        row is populated as follows::
+
+            [3.0, mass1, mass2, mass3, spin1, spin2, spin3,
+             isospin_flavor, isospin_value, sub_isospin]
+
         where the first entry is the number of particles and all values are
         cast to floats.
 
-        In the case of an explicit flavor channel space len(sc_compact[0].T)
-        is again 10. Each row is populated as follows:
-            [3.0, mass1, mass2, mass3, spin1, spin2, spin3, flavor1, flavor2,
-              flavor3],
+
+        In the case of an explicit flavor channel space
+        ``len(sc_compact[0].T)`` is again 10. Each row is populated as
+        follows::
+
+            [3.0, mass1, mass2, mass3, spin1, spin2, spin3,
+             flavor1, flavor2, flavor3]
+
         where the first entry is the number of particles and all values are
         cast to floats.
+    :type sc_compact: list
     :param three_index: location of the three-particle subspace
+
 
         If the fc_list includes multiple values of n_particles, three_index
         is used to specify the location of the sc_compact entry for the
@@ -664,10 +678,12 @@ class FlavorChannelSpace:
     :type three_index: int
     :param three_slices: list of two-entry (doublet) lists of integers
 
-        Each doublet specifies a slice of sc_compact[three_index] according to
-        mass values. So, for a non-negative integer i < len(three_slices) we
-        can evaluate:
+        Each doublet specifies a slice of ``sc_compact[three_index]`` according
+        to mass values. So, for a non-negative integer
+        ``i < len(three_slices)`` we can evaluate::
+
             sc_compact[three_index][three_slices[i][0]:three_slices[i][1]]
+
         to get a three-particle subspace with fixed mass values.
     :type three_slices: list
     :param n_three_slices: length of three_slices
@@ -675,15 +691,15 @@ class FlavorChannelSpace:
     :type n_three_slices: int
     :param g_templates: flavor structure of g
 
-        len(g_templates) is equal to len(g_templates[i]) for any non-negative
-        i < len(g_templates). Thus the list of lists is interpreted as a
-        square array, with the number of rows and columns also equal to
-        n_three_slices. Each entry in g_template gives a template for the
-        finite-volume G matrix within each pair of mass-identical subspaces.
-        Off diaongal entries are all zeroes if the sorted set of masses is
-        distinct but can be non-zero if, for example masses 2.0, 2.0, 1.0 swap
-        into masses 1.0, 2.0, 2.0 (where the first entry is the spectator in
-        both cases).
+        ``len(g_templates)`` is equal to ``len(g_templates[i])`` for any
+        non-negative ``i < len(g_templates)``. Thus the list of lists is
+        interpreted as a square array, with the number of rows and columns also
+        equal to n_three_slices. Each entry in g_template gives a template for
+        the finite-volume G matrix within each pair of mass-identical
+        subspaces. Off diaongal entries are all zeroes if the sorted set of
+        masses is distinct but can be non-zero if, for example masses
+        2.0, 2.0, 1.0 swap into masses 1.0, 2.0, 2.0 (where the first
+        entry is the spectator in both cases).
     :type g_templates: list of lists of np.ndarrays
     """
 
@@ -796,7 +812,7 @@ class FlavorChannelSpace:
             sc_comp_tmp = [sc.fc.n_particles]
             if sc.fc.isospin_channel:
                 sc_comp_tmp = sc_comp_tmp+sc.fc.masses
-                sc_comp_tmp = sc_comp_tmp+sc.fc.spins
+                sc_comp_tmp = sc_comp_tmp+sc.fc.twospins
                 sc_comp_tmp = sc_comp_tmp+[sc.fc.isospin_flavor]
                 sc_comp_tmp = sc_comp_tmp+[sc.fc.isospin_value]
                 if sc.fc.n_particles != 2:
@@ -805,7 +821,7 @@ class FlavorChannelSpace:
                 sc_comp_tmp = sc_comp_tmp\
                     + list(np.array(sc.fc.masses)[sc.indexing])
                 sc_comp_tmp = sc_comp_tmp\
-                    + list(np.array(sc.fc.spins)[sc.indexing])
+                    + list(np.array(sc.fc.twospins)[sc.indexing])
                 sc_comp_tmp = sc_comp_tmp\
                     + list(np.array(sc.fc.explicit_flavors)[sc.indexing])
             else:
@@ -938,8 +954,8 @@ class FiniteVolumeSetup:
     qc_impl is a dict that can include the following:
         qc_impl['hermitian'] (bool)
         qc_impl['real harmonics'] (bool)
-        qc_impl['noZinterp'] (bool)
-        qc_impl['noYYCG'] (bool)
+        qc_impl['Zinterp'] (bool)
+        qc_impl['YYCG'] (bool)
 
     :param formalism: indicates the formalism used
 
@@ -952,20 +968,21 @@ class FiniteVolumeSetup:
     :type nPSQ: int
     :param nPmag: magnitude of nP
     :type nPmag: float
-    :param irreps: specifies how the qc is implemented, see list above
-    :type irreps: Irreps(nP)
-    :param qc_impl: instance of the class Irreps encoding the possible
+    :param irreps: encodes the possible
         irreducible representations of the finite-volume symmetry group for a
         given value of nP
+    :type irreps: instance of Irreps
+    :param qc_impl: all settings for the implementation of the quantization
+        condition
     :type qc_impl: dict
     """
 
     def __init__(self, formalism='RFT',
                  nP=np.array([0, 0, 0]),
-                 qc_impl={'hermitian': True,
-                          'real harmonics': True,
-                          'noZinterp': True,
-                          'noYYCG': True}):
+                 qc_impl={'hermitian': QC_IMPL_DEFAULTS['hermitian'],
+                          'real harmonics': QC_IMPL_DEFAULTS['real harmonics'],
+                          'Zinterp': QC_IMPL_DEFAULTS['Zinterp'],
+                          'YYCG': QC_IMPL_DEFAULTS['YYCG']}):
         self.formalism = formalism
         self.qc_impl = qc_impl
         self.nP = nP
@@ -1008,7 +1025,7 @@ class FiniteVolumeSetup:
 
         for key in qc_impl.keys():
             if key not in ['hermitian', 'real harmonics',
-                           'noZinterp', 'noYYCG']:
+                           'Zinterp', 'YYCG']:
                 raise ValueError('key', key, 'not recognized')
 
         if (('hermitian' in qc_impl.keys())
@@ -1018,12 +1035,12 @@ class FiniteVolumeSetup:
            and (not isinstance(qc_impl['real harmonics'], bool))):
             raise ValueError('qc_impl entry real harmonics must'
                              + ' be a bool')
-        if (('noZinterp' in qc_impl.keys())
-           and (not isinstance(qc_impl['noZinterp'], bool))):
-            raise ValueError('qc_impl entry noZinterp must be a bool')
-        if (('noYYCG' in qc_impl.keys())
-           and (not isinstance(qc_impl['noYYCG'], bool))):
-            raise ValueError('qc_impl entry noYYCG must be a bool')
+        if (('Zinterp' in qc_impl.keys())
+           and (not isinstance(qc_impl['Zinterp'], bool))):
+            raise ValueError('qc_impl entry Zinterp must be a bool')
+        if (('YYCG' in qc_impl.keys())
+           and (not isinstance(qc_impl['YYCG'], bool))):
+            raise ValueError('qc_impl entry YYCG must be a bool')
 
         self._qc_impl = qc_impl
 
